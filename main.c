@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #define MATRIX_SIZE 4
+#define K 2
 /* Set to 0 to disable dividing the matrix by four. */
 #ifndef DIVIDE_MATRIX_BY_FOUR
 #define DIVIDE_MATRIX_BY_FOUR 1
@@ -24,7 +25,7 @@ enum compute_status {
 static enum compute_status compute_eigensystem(
     const double input[MATRIX_SIZE * MATRIX_SIZE],
     double eigenvalues[MATRIX_SIZE],
-    double eigenvectors[MATRIX_SIZE * MATRIX_SIZE],
+    double eigenvectors[MATRIX_SIZE * K],
     int *info,
     int *found)
 {
@@ -37,14 +38,17 @@ static enum compute_status compute_eigensystem(
         matrix[i] = input[i];
     }
 
-    int isuppz[2 * MATRIX_SIZE];
+    int isuppz[2 * K];
     char jobz = 'V';
-    char range = 'A';
+    char range = 'I';
     char uplo = 'U';
     double vl = 0.0;
     double vu = 0.0;
-    int il = 0;
-    int iu = 0;
+    /* W is ascending by signed value and DSYEVR indices are 1-based. */
+    /* Reference LAPACK uses DSTEBZ/DSTEIN for this partial index range. */
+    /* Select the final K indices to get the K largest eigenvalues. */
+    int il = n - K + 1;
+    int iu = n;
     double abstol = 0.0;
     double work_query = 0.0;
     int iwork_query = 0;
@@ -78,7 +82,7 @@ static enum compute_status compute_eigensystem(
     if (*info != 0) {
         return COMPUTE_EIGENSOLVE_ERROR;
     }
-    if (*found != n) {
+    if (*found != K) {
         return COMPUTE_EIGENVALUE_COUNT_ERROR;
     }
 
@@ -92,7 +96,7 @@ static void report_dsyevr_error(const char *stage, int info)
                 stage, -info);
     } else if (info > 0) {
         fprintf(stderr,
-                "dsyevr %s: internal error in the DSTEMR eigensolver "
+                "dsyevr %s: internal error in the eigensolver "
                 "(info=%d)\n",
                 stage, info);
     }
@@ -113,7 +117,7 @@ static void report_compute_error(enum compute_status status, int info,
         break;
     case COMPUTE_EIGENVALUE_COUNT_ERROR:
         fprintf(stderr, "dsyevr returned %d eigenvalues; expected %d\n",
-                found, MATRIX_SIZE);
+                found, K);
         break;
     case COMPUTE_SUCCESS:
         break;
@@ -162,8 +166,9 @@ int main(void)
     }
 #endif
 
+    /* DSYEVR requires N entries for W even when only K values are requested. */
     double eigenvalues[MATRIX_SIZE];
-    double eigenvectors[MATRIX_SIZE * MATRIX_SIZE];
+    double eigenvectors[MATRIX_SIZE * K];
     int info = 0;
     int found = 0;
     enum compute_status status = compute_eigensystem(

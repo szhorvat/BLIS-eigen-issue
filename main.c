@@ -49,7 +49,7 @@ static enum compute_status compute_eigensystem(
     /* Select the final K indices to get the K largest eigenvalues. */
     int il = n - K + 1;
     int iu = n;
-    double abstol = 0.0;
+    double abstol = 1e-14;
     double work_query = 0.0;
     int iwork_query = 0;
     int lwork = -1;

@@ -7,11 +7,25 @@ extern void dsyevr_(char *jobz, char *range, char *uplo, int *n,
                     int *ldz, int *isuppz, double *work, int *lwork,
                     int *iwork, int *liwork, int *info);
 
+static void report_dsyevr_error(const char *stage, int info)
+{
+    if (info < 0) {
+        fprintf(stderr, "dsyevr %s: argument %d has an illegal value\n",
+                stage, -info);
+    } else if (info > 0) {
+        fprintf(stderr,
+                "dsyevr %s: internal error in the DSTEMR eigensolver "
+                "(info=%d)\n",
+                stage, info);
+    }
+}
+
 int main(void)
 {
     int n = 4;
     int lda = 4;
     int ldz = 4;
+    /* LAPACK stores matrices column-major. */
     double matrix[] = {
          9.0,  3.0, -3.0, -9.0,
          3.0,  1.0, -1.0, -3.0,
@@ -36,11 +50,12 @@ int main(void)
     int lwork = -1;
     int liwork = -1;
 
+    /* Query workspace sizes first; -1 asks for sizes without computing. */
     dsyevr_(&jobz, &range, &uplo, &n, matrix, &lda, &vl, &vu, &il, &iu,
             &abstol, &found, eigenvalues, eigenvectors, &ldz, isuppz,
             &work_query, &lwork, &iwork_query, &liwork, &info);
     if (info != 0) {
-        fprintf(stderr, "dsyevr workspace query failed (info=%d)\n", info);
+        report_dsyevr_error("workspace query", info);
         return EXIT_FAILURE;
     }
 
@@ -55,14 +70,19 @@ int main(void)
         return EXIT_FAILURE;
     }
 
+    /* Call again with the allocated workspaces to compute the eigensystem. */
     dsyevr_(&jobz, &range, &uplo, &n, matrix, &lda, &vl, &vu, &il, &iu,
             &abstol, &found, eigenvalues, eigenvectors, &ldz, isuppz,
             work, &lwork, iwork, &liwork, &info);
     free(work);
     free(iwork);
-    if (info != 0 || found != n) {
-        fprintf(stderr, "dsyevr failed (info=%d, eigenvalues found=%d)\n",
-                info, found);
+    if (info != 0) {
+        report_dsyevr_error("eigensolve", info);
+        return EXIT_FAILURE;
+    }
+    if (found != n) {
+        fprintf(stderr, "dsyevr returned %d eigenvalues; expected %d\n",
+                found, n);
         return EXIT_FAILURE;
     }
 

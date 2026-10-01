@@ -13,6 +13,7 @@ extern void dsyevr_(char *jobz, char *range, char *uplo, int *n,
                     int *iu, double *abstol, int *m, double *w, double *z,
                     int *ldz, int *isuppz, double *work, int *lwork,
                     int *iwork, int *liwork, int *info);
+extern double dlamch_(char *cmach);
 
 enum compute_status {
     COMPUTE_SUCCESS,
@@ -49,7 +50,8 @@ static enum compute_status compute_eigensystem(
     /* Select the final K indices to get the K largest eigenvalues. */
     int il = n - K + 1;
     int iu = n;
-    double abstol = 1e-14;
+    char safe_minimum = 'S';
+    double abstol = dlamch_(&safe_minimum);
     double work_query = 0.0;
     int iwork_query = 0;
     int lwork = -1;

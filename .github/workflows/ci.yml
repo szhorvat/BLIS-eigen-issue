@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  eigen-example:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Netlib (Linux x86_64)
+            runner: ubuntu-24.04
+            vendor: Generic
+            packages: libblas-dev liblapack-dev
+          - name: Netlib (Linux aarch64)
+            runner: ubuntu-24.04-arm
+            vendor: Generic
+            packages: libblas-dev liblapack-dev
+          - name: OpenBLAS (Linux x86_64)
+            runner: ubuntu-24.04
+            vendor: OpenBLAS
+            packages: libopenblas-dev
+          - name: OpenBLAS (Linux aarch64)
+            runner: ubuntu-24.04-arm
+            vendor: OpenBLAS
+            packages: libopenblas-dev
+          - name: FLAME/BLIS (Linux x86_64)
+            runner: ubuntu-24.04
+            vendor: FLAME
+            packages: libflame-dev libblis-dev
+          - name: FLAME/BLIS (Linux aarch64)
+            runner: ubuntu-24.04-arm
+            vendor: FLAME
+            packages: libflame-dev libblis-dev
+          - name: Accelerate (macOS x86_64)
+            runner: macos-15-intel
+            vendor: Apple
+            packages: ""
+          - name: Accelerate (macOS aarch64)
+            runner: macos-15
+            vendor: Apple
+            packages: ""
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install BLAS and LAPACK
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ${{ matrix.packages }}
+      - name: Select reference Netlib libraries
+        if: matrix.vendor == 'Generic'
+        run: |
+          multiarch=$(gcc -print-multiarch)
+          sudo update-alternatives --set "libblas.so-${multiarch}" \
+            "/usr/lib/${multiarch}/blas/libblas.so"
+          sudo update-alternatives --set "libblas.so.3-${multiarch}" \
+            "/usr/lib/${multiarch}/blas/libblas.so.3"
+          sudo update-alternatives --set "liblapack.so-${multiarch}" \
+            "/usr/lib/${multiarch}/lapack/liblapack.so"
+          sudo update-alternatives --set "liblapack.so.3-${multiarch}" \
+            "/usr/lib/${multiarch}/lapack/liblapack.so.3"
+      - name: Configure
+        run: cmake -S . -B build -DBLA_VENDOR=${{ matrix.vendor }}
+      - name: Build
+        run: cmake --build build
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Run eigenvalue example
+        run: ./build/eigen_example
+        shell: bash
